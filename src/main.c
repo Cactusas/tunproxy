@@ -15,6 +15,7 @@ int main( int argc, char *argv[]) {
   uint16_t port = atoi(argv[2]);
 
   int fd_socks5_tcp = socks5_init(host, port);
+  int fd_socks5_udp = socks5_udp_associate(fd_socks5_tcp);
 
   return 0;
 }
