@@ -1,0 +1,9 @@
+# Remove tracking of all files
+/*
+
+# Whitelist files
+!CMakeLists.txt
+!.gitignore
+
+# Whitelist folders
+!src
