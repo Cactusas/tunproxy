@@ -5,6 +5,7 @@
  */
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <memory.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -94,6 +95,23 @@ int socks5_udp_associate(int fd_tcp) {
   int fd_udp = socket(AF_INET, SOCK_DGRAM, 0);
   if (fd_udp == -1) {
     perror("Could not create SOCKS5 UDP socket");
+    return -1;
+  }
+
+  ///Make TCP socket non-blocking for EOF handling purposes
+  //Get socket flags
+  int flags = fcntl(fd_tcp,F_GETFL, 0);
+  if (flags < 0)
+  {
+    perror("fcntl");
+    return -1;
+  }
+
+  //Make socket non-blocking
+  flags |= O_NONBLOCK;
+  if (fcntl(fd_tcp, F_SETFL, flags))
+  {
+    perror("fcntl");
     return -1;
   }
 
