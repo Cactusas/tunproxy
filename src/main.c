@@ -61,6 +61,8 @@ int main( int argc, char *argv[]) {
         return 0;
       } else if (events[i].events & EPOLLIN) {
         printf("Packet received\n");
+      } else if (events[i].events & EPOLLOUT) {
+        printf("EPOLLOUT\n");
       }
     }
   }
