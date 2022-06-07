@@ -34,6 +34,7 @@ int socks5_init(const char* host_addr, uint16_t port) {
     perror("");
     return -1;
   }
+  printf("TCP handshake with %s:%u completed\n", host_addr, port);
 
   ///Version identification/method selection
   uint8_t msg[3];
@@ -55,13 +56,12 @@ int socks5_init(const char* host_addr, uint16_t port) {
     fprintf(stderr, "Unexpected response from server: %0xX %0xX\n", msg_reply[0], msg_reply[1]);
     return -1;
   }
+  printf("SOCKS version/identification method selection completed\n");
 
   return fd;
 }
 
 int socks5_udp_associate(int fd_tcp) {
-
-
   uint8_t msg[10] = {0};
   msg[0] = 0x05; //SOCKS version
   msg[1] = 0x03; //CMD UDP ASSOCIATE
@@ -88,6 +88,8 @@ int socks5_udp_associate(int fd_tcp) {
 
   _bnd_addr = *(uint32_t*)(&msg_reply[4]); //Received IPv4 address
   _bnd_port = *(uint16_t*)(&msg_reply[8]); //Received UDP port
+  struct in_addr ip_addr = {.s_addr = _bnd_addr};
+  printf("UDP association completed %s:%u\n", inet_ntoa(ip_addr), _bnd_port);
 
   int fd_udp = socket(AF_INET, SOCK_DGRAM, 0);
   if (fd_udp == -1) {
@@ -95,5 +97,5 @@ int socks5_udp_associate(int fd_tcp) {
     return -1;
   }
 
-  return 0;
+  return fd_udp;
 }
