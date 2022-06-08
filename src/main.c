@@ -8,17 +8,21 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
+#include <libnet.h>
 
-#include "rsock.h"
+#include "links.h"
 #include "socks5.h"
 #include "viface.h"
 
 #define MAX_EPOLL_EVENTS 64
+#define BUFFLEN 4*1024
 
 int main( int argc, char *argv[]) {
   //TODO make arguments parsing safe
   char *host = argv[1];
   uint16_t port = atoi(argv[2]);
+
+  link_init();
 
   int fd_socks5_tcp = socks5_init(host, port);
   if (fd_socks5_tcp < 0) {
@@ -38,27 +42,23 @@ int main( int argc, char *argv[]) {
     return 1;
   }
 
-  int fd_rsock = rsock_init();
-  if (fd_rsock < 0) {
-    fprintf(stderr, "Failed to create raw socket\n");
-    return 1;
-  }
+//  int fd_rsock = rsock_init();
+//  if (fd_rsock < 0) {
+//    fprintf(stderr, "Failed to create raw socket\n");
+//    return 1;
+//  }
 
   struct epoll_event events[MAX_EPOLL_EVENTS];
   int fd_epoll = epoll_create(MAX_EPOLL_EVENTS);
-  struct epoll_event ev_socks5_tcp, ev_viface, ev_rsock;
+  struct epoll_event ev_socks5_tcp, ev_viface;
 
   ev_socks5_tcp.events = EPOLLET | EPOLLRDHUP; //Handle only EOF event
   ev_socks5_tcp.data.fd = fd_socks5_tcp;
   epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_socks5_tcp, &ev_socks5_tcp);
 
-  ev_viface.events = EPOLLET | EPOLLIN;
+  ev_viface.events = EPOLLET | EPOLLIN | EPOLLOUT;
   ev_viface.data.fd = fd_viface;
   epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_viface, &ev_viface);
-
-  ev_rsock.events = EPOLLET | EPOLLOUT;
-  ev_rsock.data.fd = fd_viface;
-  epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_rsock, &ev_rsock);
 
   //TODO this is very bad, move to popen or find workaround
   system("ip addr add 10.0.0.2/0 dev tunproxy");
@@ -66,7 +66,7 @@ int main( int argc, char *argv[]) {
   system("ip route add default dev tunproxy table 100");
   system("ip route flush cache");
 
-  uint8_t buff[4*1024];
+  uint8_t buff[BUFFLEN];
   uint32_t buff_i = 0;
 
   while (1) {
@@ -76,6 +76,10 @@ int main( int argc, char *argv[]) {
         printf("Remote host terminated connection\n");
         return 0;
       } else if (events[i].events & EPOLLIN) {
+        size_t n = read(fd_viface, buff, BUFFLEN);
+        if ((n = write(fd_viface, buff, n)) <= 0) {
+          printf("FAIL\n");
+        }
         printf("Packet received\n");
       } else if (events[i].events & EPOLLOUT) {
         printf("EPOLLOUT\n");
