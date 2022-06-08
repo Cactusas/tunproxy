@@ -48,6 +48,7 @@ int viface_init() {
     return -1;
   }
 
+  //TODO this piece of code repeats a lot of times. Move it to function
   //Get file descriptor flags
   int flags = fcntl(fd,F_GETFL, 0);
   if (flags < 0)

@@ -98,6 +98,17 @@ int socks5_udp_associate(int fd_tcp) {
     return -1;
   }
 
+  //TODO not bind port statically
+  struct sockaddr_in fd_udp_addr;
+  bzero(&fd_udp_addr, sizeof(fd_udp_addr));
+  fd_udp_addr.sin_family = AF_INET;
+  fd_udp_addr.sin_addr.s_addr = INADDR_ANY;
+  fd_udp_addr.sin_port = htons(12010);
+  if (bind(fd_udp, (struct sockaddr*)&fd_udp_addr, sizeof(struct sockaddr_in)) < 0) {
+    perror("Unable to bind port to UDP socket");
+  }
+
+  //TODO this piece of code repeats a lot of times. Move it to function
   ///Make TCP socket non-blocking for EOF handling purposes
   //Get socket flags
   int flags = fcntl(fd_tcp,F_GETFL, 0);

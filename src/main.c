@@ -9,12 +9,14 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 
+#include "rsock.h"
 #include "socks5.h"
 #include "viface.h"
 
 #define MAX_EPOLL_EVENTS 64
 
 int main( int argc, char *argv[]) {
+  //TODO make arguments parsing safe
   char *host = argv[1];
   uint16_t port = atoi(argv[2]);
 
@@ -36,9 +38,16 @@ int main( int argc, char *argv[]) {
     return 1;
   }
 
+  int fd_rsock = rsock_init();
+  if (fd_rsock < 0) {
+    fprintf(stderr, "Failed to create raw socket\n");
+    return 1;
+  }
+
   struct epoll_event events[MAX_EPOLL_EVENTS];
   int fd_epoll = epoll_create(MAX_EPOLL_EVENTS);
-  struct epoll_event ev_socks5_tcp, ev_viface;
+  struct epoll_event ev_socks5_tcp, ev_viface, ev_rsock;
+
   ev_socks5_tcp.events = EPOLLET | EPOLLRDHUP; //Handle only EOF event
   ev_socks5_tcp.data.fd = fd_socks5_tcp;
   epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_socks5_tcp, &ev_socks5_tcp);
@@ -47,11 +56,18 @@ int main( int argc, char *argv[]) {
   ev_viface.data.fd = fd_viface;
   epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_viface, &ev_viface);
 
+  ev_rsock.events = EPOLLET | EPOLLOUT;
+  ev_rsock.data.fd = fd_viface;
+  epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_rsock, &ev_rsock);
+
   //TODO this is very bad, move to popen or find workaround
   system("ip addr add 10.0.0.2/0 dev tunproxy");
   system("ip link set dev tunproxy up");
   system("ip route add default dev tunproxy table 100");
   system("ip route flush cache");
+
+  uint8_t buff[4*1024];
+  uint32_t buff_i = 0;
 
   while (1) {
     int num_ready = epoll_wait(fd_epoll, events, MAX_EPOLL_EVENTS, 1000);
