@@ -19,12 +19,15 @@
 #define MAX_EPOLL_EVENTS 64
 #define BUFFLEN 4*1024
 
+void print_banner();
+
 int main( int argc, char *argv[]) {
   //TODO make arguments parsing safe
   char *host = argv[1];
   uint16_t port = atoi(argv[2]);
-
+  print_banner();
   link_init();
+
 
   int fd_socks5_tcp = socks5_init(host, port);
   if (fd_socks5_tcp < 0) {
@@ -99,4 +102,13 @@ int main( int argc, char *argv[]) {
   }
 
   return 0;
+}
+
+void print_banner() {
+  printf(" _                                         \n");
+  printf("| |_ _   _ _ __  _ __  _ __ _____  ___   _ \n");
+  printf("| __| | | | '_ \\| '_ \\| '__/ _ \\ \\/ / | | |\n");
+  printf("| |_| |_| | | | | |_) | | | (_) >  <| |_| |\n");
+  printf(" \\__|\\__,_|_| |_| .__/|_|  \\___/_/\\_\\\\__, |\n");
+  printf("                |_|                  |___/ \n");
 }
