@@ -4,22 +4,22 @@
  * @date June 7, 2022
  */
 
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <netinet/ether.h>
-#include <linux/if_packet.h>
-
 #include <fcntl.h>
 #include <linux/if_tun.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
 #include <memory.h>
-#include <net/if.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/sysmacros.h> //makedev
 #include <sys/stat.h>
 #include <unistd.h>
+#include <net/if.h>
 #include <netinet/in.h>
+#include <stdlib.h>
 
+#include "links.h"
+#include "utils.h"
 #include "viface.h"
 
 int viface_init() {
@@ -54,52 +54,63 @@ int viface_init() {
     return -1;
   }
 
-  int fd_rsock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-  if(fd_rsock < 0) {
-    perror("Unable to create raw socket");
+  if (util_sock_add_nonblock(fd) < 0) {
     return -1;
   }
 
-//  int optval = 1;
-//  if (setsockopt(fd_rsock, IPPROTO_IP, IP_HDRINCL, &optval, sizeof(int)) < 0) {
-//    perror("setsockopt");
-//    return -1;
-//  }
-
-  //bind tunproxy
-  struct ifreq ifreq;
-  snprintf(ifreq.ifr_name, sizeof(ifreq.ifr_name), "tunproxy");
-  if (ioctl(fd_rsock, SIOCGIFINDEX, &ifreq)) {
+  if (util_cmd("ip addr add 10.0.0.2/0 dev tunproxy;"
+               "ip link set dev tunproxy up") < 0) {
     return -1;
   }
 
-  struct sockaddr_ll saddr;
-  memset(&saddr, 0, sizeof(saddr));
-  saddr.sll_family = AF_PACKET;
-  saddr.sll_protocol = htons(ETH_P_ALL);
-  saddr.sll_ifindex = ifreq.ifr_ifindex;
-  saddr.sll_pkttype = PACKET_HOST;
+  return fd;
+}
 
-  if(bind(fd_rsock, (struct sockaddr *)&saddr, sizeof(saddr)) == -1) {
-    return -1;
+size_t viface_send(int fd, uint32_t dst_addr, uint16_t dst_port, char *data, size_t n) {
+  char *packet = malloc(sizeof(struct iphdr) + sizeof(struct udphdr) + n - 10);
+  struct iphdr *ip_hdr = (struct iphdr *) packet;
+  struct udphdr *udp_hdr = (struct udphdr *) &packet[sizeof(struct iphdr)];
+
+  const struct link_ep *link = link_find_by_dst(dst_addr, dst_port);
+
+  uint16_t len = sizeof(struct iphdr) + sizeof(struct udphdr) + n - 10;
+
+  ip_hdr->ihl = 5;
+  ip_hdr->version = 4;
+  ip_hdr->tos = 0;
+  ip_hdr->tot_len = htons(len);
+  ip_hdr->id = htons(0);
+  ip_hdr->frag_off = 0;
+  ip_hdr->ttl = 64;
+  ip_hdr->protocol = IPPROTO_UDP;
+  ip_hdr->saddr = link->dst_addr;
+  ip_hdr->daddr = link->src_addr;
+  ip_hdr->check = util_ip_checksum(&ip_hdr, sizeof(struct iphdr));
+
+  // Ini->ialize the UDP header
+
+//  udp_hdr = (UDP_HDR *)&buf[sizeof(IPV4_HDR)];
+  udp_hdr->source = link->dst_port;
+  udp_hdr->dest = link->src_port;
+  udp_hdr->check = 0;
+//  udp_hdr->len = n-10+(sizeof(struct udphdr)); //16128
+  udp_hdr->len = htons(n - 10 + (sizeof(struct udphdr)));
+
+  struct sockaddr_in connection;
+  memset(&connection, 0, sizeof(connection));
+  connection.sin_family = AF_INET;
+  connection.sin_addr.s_addr = link->src_addr;
+
+  link_remove(link);
+  memcpy(&packet[sizeof(struct iphdr) + sizeof(struct udphdr)], &data[10], n - 10);
+
+  ssize_t sent = sendto(fd, packet, len, 0, (struct sockaddr *)&connection, sizeof(struct sockaddr));
+  if (sent < 0) {
+    perror("Send failed");
+    free(packet);
+    return 1;
   }
-
-  //TODO this piece of code repeats a lot of times. Move it to function
-  //Get file descriptor flags
-  int flags = fcntl(fd_rsock,F_GETFL, 0);
-  if (flags < 0)
-  {
-    perror("fcntl");
-    return -1;
-  }
-
-  //Make file descriptor non-blocking
-  flags |= O_NONBLOCK;
-  if (fcntl(fd_rsock, F_SETFL, flags))
-  {
-    perror("fcntl");
-    return -1;
-  }
-
-  return fd_rsock;
+  printf("VIFACE SENT: %ld\n", sent);
+  free(packet);
+  return sent;
 }

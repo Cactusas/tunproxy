@@ -12,7 +12,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "links.h"
 #include "socks5.h"
+#include "utils.h"
 
 static uint32_t _bnd_addr = 0;
 static uint16_t _bnd_port = 0;
@@ -108,23 +110,41 @@ int socks5_udp_associate(int fd_tcp) {
     perror("Unable to bind port to UDP socket");
   }
 
-  //TODO this piece of code repeats a lot of times. Move it to function
-  ///Make TCP socket non-blocking for EOF handling purposes
-  //Get socket flags
-  int flags = fcntl(fd_tcp,F_GETFL, 0);
-  if (flags < 0)
-  {
-    perror("fcntl");
+  if (util_sock_add_nonblock(fd_tcp) < 0) {
     return -1;
   }
 
-  //Make socket non-blocking
-  flags |= O_NONBLOCK;
-  if (fcntl(fd_tcp, F_SETFL, flags))
-  {
-    perror("fcntl");
+  if (util_sock_add_nonblock(fd_udp) < 0) {
     return -1;
   }
 
   return fd_udp;
+}
+
+ssize_t socks5_send_udp(void* vdata, size_t length, int fd) {
+  uint8_t *data = (uint8_t*)vdata;
+
+  struct link_ep link;
+  util_iptolink(vdata, &link);
+  link_add(&link);
+
+  uint8_t buff[1024];
+
+  buff[0] = 0x0; //RSV
+  buff[1] = 0x0; //RSV
+  buff[2] = 0x0; //FRAG
+  buff[3] = 0x01; //ATYP IPv4
+  memcpy(&buff[4], &link.dst_addr, sizeof(link.dst_addr)); //DST.ADDR
+  memcpy(&buff[8], &link.dst_port, sizeof(link.dst_port)); //DST.PORT
+  memcpy(&buff[10], &data[28], length-28); //USER DATA
+
+  struct sockaddr_in send_to;
+  bzero(&send_to, sizeof(send_to));
+  send_to.sin_addr.s_addr = _bnd_addr;
+  send_to.sin_port = _bnd_port;
+  send_to.sin_family = AF_INET;
+
+  ssize_t ret = sendto(fd, buff, length-18, 0, (struct sockaddr*)&send_to, sizeof(send_to));
+  printf("SOCKS5 SENT: %ld\n", ret);
+  return ret;
 }

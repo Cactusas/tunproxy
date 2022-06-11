@@ -8,7 +8,10 @@
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <libnet.h>
 
+#include "links.h"
 #include "utils.h"
 
 uint16_t util_ip_checksum(void* vdata, size_t length) {
@@ -61,4 +64,56 @@ uint16_t util_ip_checksum(void* vdata, size_t length) {
 
   // Return the checksum in network byte order.
   return htons(~acc);
+}
+
+void util_iptolink(void *vdata, struct link_ep *link) {
+  uint8_t *data = (uint8_t*)vdata;
+
+  memcpy(&link->src_addr, &data[12], 4);
+  memcpy(&link->dst_addr, &data[16], 4);
+  memcpy(&link->src_port, &data[20], 2);
+  memcpy(&link->dst_port, &data[22], 2);
+//  memcpy(link, &data[12], 12);
+}
+
+int util_is_udp(const char* buffer) {
+  unsigned char version = ((unsigned char) buffer[0]) >> 4;
+  if (version == 4) {
+    if ((unsigned char)buffer[9] == IPPROTO_UDP) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int util_sock_add_nonblock(int sfd) {
+  int flags = fcntl(sfd, F_GETFL, 0);
+  if (flags == -1) {
+    perror ("fcntl");
+    return -1;
+  }
+
+  flags |= O_NONBLOCK;
+  if (fcntl (sfd, F_SETFL, flags) == -1) {
+    perror ("fcntl");
+    return -1;
+  }
+
+  return 0;
+}
+
+int util_cmd(const char *cmd) {
+  int ch;
+
+  FILE *p = popen(cmd,"r");
+  if( p == NULL){
+    perror("Unable to open process");
+    return -1;
+  }
+  while((ch=fgetc(p)) != EOF) {
+    putchar(ch);
+  }
+  pclose(p);
+
+  return 0;
 }
