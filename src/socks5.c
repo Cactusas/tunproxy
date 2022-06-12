@@ -19,7 +19,7 @@
 static uint32_t _bnd_addr = 0;
 static uint16_t _bnd_port = 0;
 
-int socks5_init(const char* host_addr, uint16_t port) {
+int socks5_init(uint32_t host_addr, uint16_t port) {
   int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (fd < 0) {
     perror("Could not create SOCKS5 TCP socket");
@@ -28,16 +28,17 @@ int socks5_init(const char* host_addr, uint16_t port) {
 
   struct sockaddr_in host;
   bzero(&host, sizeof(struct sockaddr_in));
-  host.sin_addr.s_addr = inet_addr(host_addr);
+//  host.sin_addr.s_addr = inet_addr(host_addr);
+  host.sin_addr.s_addr = host_addr;
   host.sin_port = htons(port);
   host.sin_family = AF_INET;
 
   if (connect(fd, (struct sockaddr*)&host, sizeof(host)) < 0) {
-    fprintf(stderr, "Connection to %s:%u failed: ", host_addr, port);
+    //fprintf(stderr, "Connection to %s:%u failed: ", host_addr, port);
     perror("");
     return -1;
   }
-  printf("TCP handshake with %s:%u completed\n", host_addr, port);
+  //printf("TCP handshake with %s:%u completed\n", host_addr, port);
 
   ///Version identification/method selection
   uint8_t msg[3];

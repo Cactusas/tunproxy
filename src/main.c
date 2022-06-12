@@ -4,6 +4,7 @@
  * @date June 6, 2022
  */
 
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -21,13 +22,16 @@
 
 void print_banner();
 void sighandler(int signum);
+int parse_args(int argc, char *argv[]);
 
 volatile int end = 0;
+uint32_t host = 0;
+uint16_t port = 0;
 
-int main( int argc, char *argv[]) {
-  //TODO make arguments parsing safe
-  char *host = argv[1];
-  uint16_t port = atoi(argv[2]);
+int main(int argc, char *argv[]) {
+  if (parse_args(argc, argv)) {
+    return 1;
+  }
 
   print_banner();
   link_init();
@@ -128,4 +132,36 @@ void sighandler(int signum) {
   util_cmd("iptables -t mangle -D OUTPUT -p udp ! --sport 12010 -j MARK --set-mark 2;"
            "ip rule del fwmark 2 lookup 100;");
   end = 1;
+}
+
+int parse_args(int argc, char *argv[]) {
+  if (argc < 2) {
+    return 1;
+  }
+  char *token = strtok(argv[1], ":");
+
+  ///IP address validation
+  struct sockaddr_in sa;
+  if (inet_pton(AF_INET, token, &(sa.sin_addr)) == 0) {
+    fprintf(stderr, "Invalid IP address\n");
+    return 1;
+  }
+  host = inet_addr(token);
+
+  ///Argument format detection [IP:port] or [IP port]
+  char *_port;
+  if ((token = strtok(NULL, ":")) == NULL && argc >= 3) { //format is [IP port]
+    _port = argv[2];
+  } else { //format is [IP:port]
+    _port = token;
+  }
+
+  ///Port validation
+  port = strtoul(_port, NULL, 10);
+  if (port == 0) { //strtoul() returns 0 if failed, port number cannot be 0 anyway
+    fprintf(stderr, "Invalid port\n");
+    return 1;
+  }
+
+  return 0;
 }
