@@ -129,7 +129,7 @@ ssize_t socks5_send_udp(void* vdata, size_t length, int fd) {
   util_iptolink(vdata, &link);
   link_add(&link);
 
-  uint8_t buff[1024];
+  uint8_t buff[4*1024];
 
   buff[0] = 0x0; //RSV
   buff[1] = 0x0; //RSV

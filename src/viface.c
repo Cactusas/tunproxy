@@ -73,6 +73,10 @@ size_t viface_send(int fd, uint32_t dst_addr, uint16_t dst_port, void *vdata, si
   struct udphdr *udp_hdr = (struct udphdr *) &packet[sizeof(struct iphdr)];
 
   const struct link_ep *link = link_find_by_dst(dst_addr, dst_port);
+  if (link == NULL) {
+    fprintf(stderr, "Could not find packet link\n"); //TODO why this happens?
+    return 0;
+  }
 
   uint16_t len = sizeof(struct iphdr) + sizeof(struct udphdr) + n - 10;
 
