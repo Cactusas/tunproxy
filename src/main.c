@@ -99,13 +99,13 @@ int main(int argc, char *argv[]) {
           size_t n = read(fd_viface, buff, BUFFLEN);
           if (util_is_udp(buff)) {
             printf("Packet received VIFACE: %lu\n", n);
-            size_t ret = socks5_send_udp(buff, n, fd_socks5_udp);
+            socks5_send_udp(buff, n, fd_socks5_udp);
           }
         } else if (events[i].data.fd == fd_socks5_udp) {
           size_t n = read(fd_socks5_udp, buff, BUFFLEN);
           uint32_t iprec = *(uint32_t*)(&buff[4]);
           uint16_t portrec = *(uint32_t*)&buff[8];
-          size_t ret = viface_send(fd_rsock, iprec, portrec, buff, n);
+          viface_send(fd_rsock, iprec, portrec, buff, n);
           printf("Packet received SOCKS5: %lu\n", n);
         }
       }

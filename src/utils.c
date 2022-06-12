@@ -76,10 +76,11 @@ void util_iptolink(void *vdata, struct link_ep *link) {
 //  memcpy(link, &data[12], 12);
 }
 
-int util_is_udp(const char* buffer) {
-  unsigned char version = ((unsigned char) buffer[0]) >> 4;
+int util_is_udp(void *vdata) {
+  char *data = (char*)vdata;
+  unsigned char version = ((unsigned char)data[0]) >> 4;
   if (version == 4) {
-    if ((unsigned char)buffer[9] == IPPROTO_UDP) {
+    if ((unsigned char)data[9] == IPPROTO_UDP) {
       return 1;
     }
   }

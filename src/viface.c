@@ -66,7 +66,8 @@ int viface_init() {
   return fd;
 }
 
-size_t viface_send(int fd, uint32_t dst_addr, uint16_t dst_port, char *data, size_t n) {
+size_t viface_send(int fd, uint32_t dst_addr, uint16_t dst_port, void *vdata, size_t n) {
+  char *data = (char*)vdata;
   char *packet = malloc(sizeof(struct iphdr) + sizeof(struct udphdr) + n - 10);
   struct iphdr *ip_hdr = (struct iphdr *) packet;
   struct udphdr *udp_hdr = (struct udphdr *) &packet[sizeof(struct iphdr)];
