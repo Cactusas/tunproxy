@@ -88,13 +88,9 @@ size_t viface_send(int fd, uint32_t dst_addr, uint16_t dst_port, void *vdata, si
   ip_hdr->daddr = link->src_addr;
   ip_hdr->check = util_ip_checksum(&ip_hdr, sizeof(struct iphdr));
 
-  // Ini->ialize the UDP header
-
-//  udp_hdr = (UDP_HDR *)&buf[sizeof(IPV4_HDR)];
   udp_hdr->source = link->dst_port;
   udp_hdr->dest = link->src_port;
   udp_hdr->check = 0;
-//  udp_hdr->len = n-10+(sizeof(struct udphdr)); //16128
   udp_hdr->len = htons(n - 10 + (sizeof(struct udphdr)));
 
   struct sockaddr_in connection;
