@@ -12,6 +12,7 @@
 #include <libnet.h>
 
 #include "links.h"
+#include "log.h"
 #include "rsock.h"
 #include "socks5.h"
 #include "utils.h"
@@ -27,18 +28,24 @@ int parse_args(int argc, char *argv[]);
 volatile int end = 0;
 uint32_t host = 0;
 uint16_t port = 0;
+char *log_file = NULL;
 
 int main(int argc, char *argv[]) {
   if (parse_args(argc, argv)) {
     return 1;
   }
 
-  print_banner();
-  link_init();
-
   signal(SIGINT, sighandler);
   signal(SIGTERM, sighandler);
   signal(SIGKILL, sighandler);
+
+  print_banner();
+  link_init();
+
+  if (log_file && log_init(log_file)) {
+    fprintf(stderr, "Cannot initialize log file\n");
+    return 1;
+  }
 
   int fd_socks5_tcp = socks5_init(host, port);
   if (fd_socks5_tcp < 0) {
@@ -74,14 +81,17 @@ int main(int argc, char *argv[]) {
   int fd_epoll = epoll_create(MAX_EPOLL_EVENTS);
   struct epoll_event ev_socks5_tcp, ev_viface, ev_socks5_udp;
 
+  bzero(&ev_socks5_tcp, sizeof(ev_socks5_tcp));
   ev_socks5_tcp.events = EPOLLET | EPOLLRDHUP; //Handle only EOF event
   ev_socks5_tcp.data.fd = fd_socks5_tcp;
   epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_socks5_tcp, &ev_socks5_tcp);
 
+  bzero(&ev_viface, sizeof(ev_viface));
   ev_viface.events = EPOLLET | EPOLLIN;
   ev_viface.data.fd = fd_viface;
   epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_viface, &ev_viface);
 
+  bzero(&ev_socks5_udp, sizeof(ev_socks5_udp));
   ev_socks5_udp.events = EPOLLET | EPOLLIN;
   ev_socks5_udp.data.fd = fd_socks5_udp;
   epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd_socks5_udp, &ev_socks5_udp);
@@ -96,9 +106,10 @@ int main(int argc, char *argv[]) {
         return 0;
       } else if (events[i].events & EPOLLIN) {
         if (events[i].data.fd == fd_viface) {
-          size_t n = read(fd_viface, buff, BUFFLEN);
+          ssize_t n = read(fd_viface, buff, BUFFLEN);
           if (util_is_udp(buff)) {
             printf("Packet received VIFACE: %lu\n", n);
+            log_write(buff, n);
             socks5_send_udp(buff, n, fd_socks5_udp);
           }
         } else if (events[i].data.fd == fd_socks5_udp) {
@@ -115,6 +126,16 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+void print_usage() {
+  printf("Usage: tunproxy [HOST:PORT] OPTIONS\n");
+}
+
+void print_version() {
+#if defined(SOFTWARE_MAJOR) && defined(SOFTWARE_MINOR) && defined(SOFTWARE_BUILD)
+  printf("v%d.%d.%d\n\n", SOFTWARE_MAJOR, SOFTWARE_MINOR, SOFTWARE_BUILD);
+#endif
+}
+
 void print_banner() {
   printf(" _                                         \n");
   printf("| |_ _   _ _ __  _ __  _ __ _____  ___   _ \n");
@@ -122,10 +143,7 @@ void print_banner() {
   printf("| |_| |_| | | | | |_) | | | (_) >  <| |_| |\n");
   printf(" \\__|\\__,_|_| |_| .__/|_|  \\___/_/\\_\\\\__, |\n");
   printf("                |_|                  |___/ \n");
-
-#if defined(SOFTWARE_MAJOR) && defined(SOFTWARE_MINOR) && defined(SOFTWARE_BUILD)
-    printf("v%d.%d.%d\n\n", SOFTWARE_MAJOR, SOFTWARE_MINOR, SOFTWARE_BUILD);
-#endif
+  print_version();
 }
 
 void sighandler(int signum) {
@@ -161,6 +179,21 @@ int parse_args(int argc, char *argv[]) {
   if (port == 0) { //strtoul() returns 0 if failed, port number cannot be 0 anyway
     fprintf(stderr, "Invalid port\n");
     return 1;
+  }
+
+  int opt = 0;
+  while((opt = getopt(argc, argv, ":l:v")) != -1)
+  {
+    switch(opt) {
+      case 'l':
+        log_file = optarg;
+        break;
+      case ':':
+        printf("Missing argument for -%c\n", optopt);
+        return 1;
+      default:
+        break;
+    }
   }
 
   return 0;
