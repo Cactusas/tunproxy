@@ -111,4 +111,8 @@ void print_banner() {
   printf("| |_| |_| | | | | |_) | | | (_) >  <| |_| |\n");
   printf(" \\__|\\__,_|_| |_| .__/|_|  \\___/_/\\_\\\\__, |\n");
   printf("                |_|                  |___/ \n");
+
+#if defined(SOFTWARE_MAJOR) && defined(SOFTWARE_MINOR) && defined(SOFTWARE_BUILD)
+    printf("v%d.%d.%d\n\n", SOFTWARE_MAJOR, SOFTWARE_MINOR, SOFTWARE_BUILD);
+#endif
 }
