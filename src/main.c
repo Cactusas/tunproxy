@@ -20,14 +20,21 @@
 #define BUFFLEN 4*1024
 
 void print_banner();
+void sighandler(int signum);
+
+volatile int end = 0;
 
 int main( int argc, char *argv[]) {
   //TODO make arguments parsing safe
   char *host = argv[1];
   uint16_t port = atoi(argv[2]);
+
   print_banner();
   link_init();
 
+  signal(SIGINT, sighandler);
+  signal(SIGTERM, sighandler);
+  signal(SIGKILL, sighandler);
 
   int fd_socks5_tcp = socks5_init(host, port);
   if (fd_socks5_tcp < 0) {
@@ -77,7 +84,7 @@ int main( int argc, char *argv[]) {
 
   uint8_t buff[BUFFLEN];
 
-  while (1) {
+  while (!end) {
     int num_ready = epoll_wait(fd_epoll, events, MAX_EPOLL_EVENTS, 1000);
     for (int i = 0; i < num_ready; i++) {
       if(events[i].events & EPOLLRDHUP) {
@@ -115,4 +122,10 @@ void print_banner() {
 #if defined(SOFTWARE_MAJOR) && defined(SOFTWARE_MINOR) && defined(SOFTWARE_BUILD)
     printf("v%d.%d.%d\n\n", SOFTWARE_MAJOR, SOFTWARE_MINOR, SOFTWARE_BUILD);
 #endif
+}
+
+void sighandler(int signum) {
+  util_cmd("iptables -t mangle -D OUTPUT -p udp ! --sport 12010 -j MARK --set-mark 2;"
+           "ip rule del fwmark 2 lookup 100;");
+  end = 1;
 }
